@@ -1,0 +1,27 @@
+{
+  "manifest_version": 3,
+  "name": "Заметки по сайтам",
+  "description": "Личные заметки для каждого сайта в боковой панели Chrome.",
+  "version": "1.0.0",
+  "minimum_chrome_version": "114",
+  "permissions": ["sidePanel", "storage", "tabs"],
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
+  "action": {
+    "default_title": "Открыть заметки сайта",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png"
+    }
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "side_panel": {
+    "default_path": "panel.html"
+  }
+}
