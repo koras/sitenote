@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createNote, getSiteKey, getStorageKey, sortNotes } from "../notes.mjs";
+import { createNote, getNoteActivity, getSiteKey, getStorageKey, sortNotes } from "../notes.mjs";
 
 test("страницы, протоколы, порты и www одного сайта используют один ключ", () => {
   for (const url of [
@@ -29,4 +29,15 @@ test("заметки сортируются по времени последне
   const newer = createNote("example.com", "2026-10-16T12:00:00.000Z", "newer");
   older.updatedAt = "2026-10-17T12:00:00.000Z";
   assert.deepEqual(sortNotes([newer, older]).map((note) => note.id), ["older", "newer"]);
+});
+
+test("под кнопкой показывается создание до редактирования и изменение после него", () => {
+  const note = createNote("example.com", "2026-10-16T12:00:00.000Z", "id-1");
+  assert.deepEqual(getNoteActivity(note), {
+    label: "Создана", timestamp: "2026-10-16T12:00:00.000Z"
+  });
+  note.updatedAt = "2026-10-16T12:05:00.000Z";
+  assert.deepEqual(getNoteActivity(note), {
+    label: "Изменена", timestamp: "2026-10-16T12:05:00.000Z"
+  });
 });

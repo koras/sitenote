@@ -34,3 +34,9 @@ export function sortNotes(notes) {
     b.updatedAt.localeCompare(a.updatedAt) || b.createdAt.localeCompare(a.createdAt) || a.id.localeCompare(b.id)
   );
 }
+
+export function getNoteActivity(note) {
+  return note.updatedAt === note.createdAt
+    ? { label: "Создана", timestamp: note.createdAt }
+    : { label: "Изменена", timestamp: note.updatedAt };
+}

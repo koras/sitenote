@@ -1,4 +1,4 @@
-import { createNote, getSiteKey, getStorageKey, sortNotes, DEFAULT_TITLE } from "./notes.mjs";
+import { createNote, getNoteActivity, getSiteKey, getStorageKey, sortNotes, DEFAULT_TITLE } from "./notes.mjs";
 
 const elements = {
   siteName: document.querySelector("#site-name"),
@@ -25,7 +25,6 @@ let contextRevision = 0;
 let toastTimer = null;
 const pendingWrites = new Map();
 const writeQueues = new Map();
-const selectedBySite = new Map();
 const dateFormatter = new Intl.DateTimeFormat("ru-RU", { dateStyle: "short", timeStyle: "short" });
 
 function showToast(message) {
@@ -66,11 +65,11 @@ function renderList() {
     selectButton.textContent = note.title.trim() || "Без названия";
     selectButton.style.backgroundColor = note.color;
     selectButton.style.color = readableTextColor(note.color);
-    selectButton.title = `${note.title.trim() || "Без названия"}\nИзменена: ${formatDate(note.updatedAt)}`;
+    const activity = getNoteActivity(note);
+    selectButton.title = `${note.title.trim() || "Без названия"}\n${activity.label}: ${formatDate(activity.timestamp)}`;
     selectButton.setAttribute("aria-pressed", String(note.id === selectedId));
     selectButton.addEventListener("click", () => {
       selectedId = note.id;
-      selectedBySite.set(currentSite, note.id);
       render();
     });
 
@@ -89,7 +88,12 @@ function renderList() {
       }
     });
 
-    row.append(selectButton, copyButton);
+    const date = document.createElement("time");
+    date.className = "note-date";
+    date.dateTime = activity.timestamp;
+    date.textContent = `${activity.label}: ${formatDate(activity.timestamp)}`;
+
+    row.append(selectButton, copyButton, date);
     elements.noteList.append(row);
   }
 }
@@ -190,8 +194,8 @@ async function refreshContext() {
       .filter(([key, value]) => key.startsWith(prefix) && value?.site === site && value?.id)
       .map(([, value]) => value);
     currentSite = site;
-    const preferred = selectedBySite.get(site);
-    selectedId = notes.some((note) => note.id === preferred) ? preferred : sortNotes(notes)[0]?.id ?? null;
+    // При открытии сайта форма скрыта, пока пользователь не выберет заметку или «Новая».
+    selectedId = null;
     render();
   } catch (error) {
     console.error("Не удалось загрузить заметки:", error);
@@ -206,7 +210,6 @@ elements.newNote.addEventListener("click", async () => {
     await persistNote(note);
     notes.push(note);
     selectedId = note.id;
-    selectedBySite.set(currentSite, note.id);
     render();
     elements.title.focus();
     elements.title.select();
@@ -239,9 +242,7 @@ elements.deleteNote.addEventListener("click", async () => {
     await (writeQueues.get(key) ?? Promise.resolve()).catch(() => {});
     await chrome.storage.local.remove(key);
     notes = notes.filter((item) => item.id !== note.id);
-    selectedId = sortNotes(notes)[0]?.id ?? null;
-    if (selectedId) selectedBySite.set(currentSite, selectedId);
-    else selectedBySite.delete(currentSite);
+    selectedId = null;
     render();
     showToast("Заметка удалена");
   } catch (error) {
