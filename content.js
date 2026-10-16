@@ -56,16 +56,17 @@
       border-radius: 8px; background: #fff; color: #252535; }
     .title-input { margin-bottom: 14px; padding: 8px 9px; font-size: 13px; font-weight: 600; }
     .content-input { min-height: 175px; resize: vertical; padding: 9px; font-size: 12px; line-height: 1.5; }
-    .editor-tools { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 16px; }
+    .editor-tools { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; }
     .color-control { display: flex; align-items: center; gap: 6px; color: #686579; font-size: 11px; }
     .color-input { width: 32px; height: 27px; padding: 2px; border: 1px solid #dcdbe7;
       border-radius: 6px; background: #fff; cursor: pointer; }
-    .delete-button { border: 0; background: transparent; color: #a33c52; padding: 3px; font-size: 11px; }
-    .delete-button:hover { text-decoration: underline; }
+    .delete-button { border: 1px solid #e8b5c1; border-radius: 7px; background: #fff3f5;
+      color: #a33c52; padding: 7px 9px; font-size: 11px; font-weight: 650; }
+    .delete-button:hover { background: #ffe7ec; }
     .timestamps { display: grid; gap: 3px; margin-top: 10px; color: #777487; font-size: 10px; }
     .save-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
       gap: 8px; margin-top: 14px; }
-    .save-status { color: #777487; font-size: 10px; }
+    .save-status { display: block; margin-top: 7px; color: #777487; font-size: 10px; }
     .save-actions { display: flex; gap: 6px; margin-left: auto; }
     .cancel-button, .save-button { border: 0; border-radius: 7px; padding: 7px 9px; font-size: 11px; font-weight: 650; }
     .cancel-button { background: #eae9f0; color: #4e4b61; }
@@ -100,7 +101,6 @@
         <label class="color-control" for="note-color">Цвет кнопки
           <input id="note-color" class="color-input" type="color" aria-label="Цвет кнопки заметки">
         </label>
-        <button id="delete-note" class="delete-button" type="button">Удалить</button>
       </div>
       <label class="field-label" for="note-content">Текст заметки</label>
       <textarea id="note-content" class="content-input" spellcheck="true"
@@ -110,12 +110,13 @@
         <div>Изменена: <time id="updated-at"></time></div>
       </div>
       <div class="save-bar">
-        <span id="save-status" class="save-status" role="status"></span>
+        <button id="delete-note" class="delete-button" type="button">Удалить заметку</button>
         <div class="save-actions">
           <button id="cancel-note" class="cancel-button" type="button">Отмена</button>
           <button id="save-note" class="save-button" type="button">Сохранить</button>
         </div>
       </div>
+      <span id="save-status" class="save-status" role="status"></span>
     </section>
     <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
   `;
