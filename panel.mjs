@@ -1,4 +1,4 @@
-import { createNote, getNoteActivity, getSiteKey, getStorageKey, sortNotes, DEFAULT_TITLE } from "./notes.mjs";
+import { createNote, getNoteActivity, getSiteKey, getStorageKey, hasNoteContent, sortNotes, DEFAULT_COLOR, DEFAULT_TITLE } from "./notes.mjs";
 
 const elements = {
   siteName: document.querySelector("#site-name"),
@@ -12,8 +12,12 @@ const elements = {
   color: document.querySelector("#note-color"),
   content: document.querySelector("#note-content"),
   deleteNote: document.querySelector("#delete-note"),
+  timestamps: document.querySelector("#timestamps"),
   createdAt: document.querySelector("#created-at"),
   updatedAt: document.querySelector("#updated-at"),
+  saveStatus: document.querySelector("#save-status"),
+  saveNote: document.querySelector("#save-note"),
+  cancelNote: document.querySelector("#cancel-note"),
   toast: document.querySelector("#toast")
 };
 
@@ -21,10 +25,11 @@ let currentSite = null;
 let currentTabId = null;
 let notes = [];
 let selectedId = null;
+let draft = null;
+let saving = false;
 let contextRevision = 0;
 let toastTimer = null;
-const pendingWrites = new Map();
-const writeQueues = new Map();
+const draftsBySite = new Map();
 const dateFormatter = new Intl.DateTimeFormat("ru-RU", { dateStyle: "short", timeStyle: "short" });
 
 function showToast(message) {
@@ -38,8 +43,22 @@ function formatDate(iso) {
   return dateFormatter.format(new Date(iso));
 }
 
-function getSelectedNote() {
-  return notes.find((note) => note.id === selectedId) ?? null;
+function hasDraftChanges() {
+  if (!draft) return false;
+  const saved = draft.id ? notes.find((note) => note.id === draft.id) : null;
+  if (!saved) {
+    return draft.title !== DEFAULT_TITLE || draft.color !== DEFAULT_COLOR || draft.content !== "";
+  }
+  return draft.title !== saved.title || draft.color !== saved.color || draft.content !== saved.content;
+}
+
+function canDiscardDraft() {
+  return !hasDraftChanges() || confirm("Есть несохранённые изменения. Закрыть без сохранения?");
+}
+
+function updateSaveStatus() {
+  elements.saveStatus.textContent = draft?.id && !hasDraftChanges()
+    ? "Изменения сохранены" : "Не сохранено";
 }
 
 function readableTextColor(hex) {
@@ -69,6 +88,8 @@ function renderList() {
     selectButton.title = `${note.title.trim() || "Без названия"}\n${activity.label}: ${formatDate(activity.timestamp)}`;
     selectButton.setAttribute("aria-pressed", String(note.id === selectedId));
     selectButton.addEventListener("click", () => {
+      if (saving || draft?.id === note.id || !canDiscardDraft()) return;
+      draft = { ...note };
       selectedId = note.id;
       render();
     });
@@ -99,7 +120,7 @@ function renderList() {
 }
 
 function renderEditor() {
-  const note = getSelectedNote();
+  const note = draft;
   elements.emptyNote.hidden = Boolean(note);
   elements.noteEditor.hidden = !note;
   if (!note) return;
@@ -107,10 +128,15 @@ function renderEditor() {
   elements.title.value = note.title;
   elements.color.value = note.color;
   elements.content.value = note.content;
-  elements.createdAt.dateTime = note.createdAt;
-  elements.createdAt.textContent = formatDate(note.createdAt);
-  elements.updatedAt.dateTime = note.updatedAt;
-  elements.updatedAt.textContent = formatDate(note.updatedAt);
+  elements.timestamps.hidden = !note.id;
+  elements.deleteNote.hidden = !note.id;
+  if (note.id) {
+    elements.createdAt.dateTime = note.createdAt;
+    elements.createdAt.textContent = formatDate(note.createdAt);
+    elements.updatedAt.dateTime = note.updatedAt;
+    elements.updatedAt.textContent = formatDate(note.updatedAt);
+  }
+  updateSaveStatus();
 }
 
 function render() {
@@ -123,66 +149,28 @@ function render() {
   renderEditor();
 }
 
-// Записи для разных заметок идут независимо; записи одной заметки сохраняют порядок.
-function persistNote(note) {
-  const key = getStorageKey(note.site, note.id);
-  const previous = writeQueues.get(key) ?? Promise.resolve();
-  const next = previous.catch(() => {}).then(() => chrome.storage.local.set({ [key]: note }));
-  writeQueues.set(key, next);
-  next.then(
-    () => { if (writeQueues.get(key) === next) writeQueues.delete(key); },
-    () => { if (writeQueues.get(key) === next) writeQueues.delete(key); }
-  );
-  return next;
-}
-
-function scheduleSave(note) {
-  const key = getStorageKey(note.site, note.id);
-  const existing = pendingWrites.get(key);
-  if (existing) clearTimeout(existing.timer);
-  const snapshot = { ...note };
-  const timer = setTimeout(() => {
-    pendingWrites.delete(key);
-    persistNote(snapshot).catch(() => showToast("Не удалось сохранить заметку"));
-  }, 350);
-  pendingWrites.set(key, { note: snapshot, timer });
-}
-
-async function flushPending() {
-  const writes = [];
-  for (const [key, pending] of pendingWrites) {
-    clearTimeout(pending.timer);
-    pendingWrites.delete(key);
-    writes.push(persistNote(pending.note));
-  }
-  await Promise.all(writes);
-}
-
-function updateSelected(field, value) {
-  const note = getSelectedNote();
-  if (!note || note[field] === value) return;
-  note[field] = value;
-  note.updatedAt = new Date().toISOString();
-  elements.updatedAt.dateTime = note.updatedAt;
-  elements.updatedAt.textContent = formatDate(note.updatedAt);
-  renderList();
-  scheduleSave(note);
+function updateDraft(field, value) {
+  if (!draft) return;
+  draft[field] = value;
+  updateSaveStatus();
 }
 
 async function refreshContext() {
   const revision = ++contextRevision;
   try {
-    await flushPending();
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (revision !== contextRevision) return;
     const site = getSiteKey(tab?.url);
     currentTabId = tab?.id ?? null;
     if (site === currentSite) return;
+    // Черновик остаётся в памяти панели, пока пользователь не сохранит или не отменит его.
+    if (currentSite && draft) draftsBySite.set(currentSite, draft);
 
     if (!site) {
       currentSite = null;
       notes = [];
       selectedId = null;
+      draft = null;
       render();
       return;
     }
@@ -194,8 +182,8 @@ async function refreshContext() {
       .filter(([key, value]) => key.startsWith(prefix) && value?.site === site && value?.id)
       .map(([, value]) => value);
     currentSite = site;
-    // При открытии сайта форма скрыта, пока пользователь не выберет заметку или «Новая».
-    selectedId = null;
+    draft = draftsBySite.get(site) ?? null;
+    selectedId = draft?.id ?? null;
     render();
   } catch (error) {
     console.error("Не удалось загрузить заметки:", error);
@@ -203,47 +191,96 @@ async function refreshContext() {
   }
 }
 
-elements.newNote.addEventListener("click", async () => {
-  if (!currentSite) return;
-  const note = createNote(currentSite);
-  try {
-    await persistNote(note);
-    notes.push(note);
-    selectedId = note.id;
-    render();
-    elements.title.focus();
-    elements.title.select();
-  } catch (error) {
-    console.error("Не удалось создать заметку:", error);
-    showToast("Не удалось создать заметку");
-  }
+elements.newNote.addEventListener("click", () => {
+  if (!currentSite || saving || !canDiscardDraft()) return;
+  draft = {
+    id: null, site: currentSite, title: DEFAULT_TITLE,
+    content: "", color: DEFAULT_COLOR, createdAt: null, updatedAt: null
+  };
+  selectedId = null;
+  render();
+  elements.title.focus();
+  elements.title.select();
 });
 
-elements.title.addEventListener("input", () => updateSelected("title", elements.title.value));
+elements.title.addEventListener("input", () => updateDraft("title", elements.title.value));
 elements.title.addEventListener("blur", () => {
   if (!elements.title.value.trim()) {
     elements.title.value = DEFAULT_TITLE;
-    updateSelected("title", DEFAULT_TITLE);
+    updateDraft("title", DEFAULT_TITLE);
   }
 });
-elements.color.addEventListener("input", () => updateSelected("color", elements.color.value));
-elements.content.addEventListener("input", () => updateSelected("content", elements.content.value));
+elements.color.addEventListener("input", () => updateDraft("color", elements.color.value));
+elements.content.addEventListener("input", () => updateDraft("content", elements.content.value));
+
+elements.saveNote.addEventListener("click", async () => {
+  if (!draft || saving) return;
+  if (!hasNoteContent(draft.content)) {
+    showToast("Добавьте текст заметки перед сохранением");
+    elements.content.focus();
+    return;
+  }
+  if (draft.id && !hasDraftChanges()) {
+    showToast("Изменений нет");
+    return;
+  }
+
+  // Время создания фиксируется только при первом сохранении, а не при открытии формы.
+  const now = new Date().toISOString();
+  const note = draft.id
+    ? { ...draft, title: draft.title.trim() || DEFAULT_TITLE, updatedAt: now }
+    : { ...createNote(draft.site, now), title: draft.title.trim() || DEFAULT_TITLE,
+        content: draft.content, color: draft.color };
+  saving = true;
+  elements.saveNote.disabled = true;
+  elements.title.disabled = true;
+  elements.color.disabled = true;
+  elements.content.disabled = true;
+  try {
+    await chrome.storage.local.set({ [getStorageKey(note.site, note.id)]: note });
+    draftsBySite.delete(note.site);
+    if (currentSite === note.site) {
+      notes = notes.filter((item) => item.id !== note.id);
+      notes.push(note);
+      draft = { ...note };
+      selectedId = note.id;
+      render();
+    }
+    showToast("Заметка сохранена");
+  } catch (error) {
+    console.error("Не удалось сохранить заметку:", error);
+    showToast("Не удалось сохранить заметку");
+  } finally {
+    saving = false;
+    elements.saveNote.disabled = false;
+    elements.title.disabled = false;
+    elements.color.disabled = false;
+    elements.content.disabled = false;
+  }
+});
+
+elements.cancelNote.addEventListener("click", () => {
+  if (saving || !canDiscardDraft()) return;
+  draftsBySite.delete(currentSite);
+  draft = null;
+  selectedId = null;
+  render();
+});
 
 elements.deleteNote.addEventListener("click", async () => {
-  const note = getSelectedNote();
-  if (!note || !confirm(`Удалить заметку «${note.title.trim() || "Без названия"}»?`)) return;
+  const note = draft;
+  if (saving) return;
+  if (!note?.id || !confirm(`Удалить заметку «${note.title.trim() || "Без названия"}»?`)) return;
   const key = getStorageKey(note.site, note.id);
-  const pending = pendingWrites.get(key);
-  if (pending) {
-    clearTimeout(pending.timer);
-    pendingWrites.delete(key);
-  }
   try {
-    await (writeQueues.get(key) ?? Promise.resolve()).catch(() => {});
     await chrome.storage.local.remove(key);
-    notes = notes.filter((item) => item.id !== note.id);
-    selectedId = null;
-    render();
+    draftsBySite.delete(note.site);
+    if (currentSite === note.site) {
+      notes = notes.filter((item) => item.id !== note.id);
+      selectedId = null;
+      draft = null;
+      render();
+    }
     showToast("Заметка удалена");
   } catch (error) {
     console.error("Не удалось удалить заметку:", error);
@@ -257,5 +294,4 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
 });
 chrome.tabs.onRemoved.addListener((tabId) => { if (tabId === currentTabId) refreshContext(); });
 chrome.windows.onFocusChanged.addListener(() => { refreshContext(); });
-window.addEventListener("pagehide", () => { flushPending().catch(console.error); });
 refreshContext();

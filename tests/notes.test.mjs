@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createNote, getNoteActivity, getSiteKey, getStorageKey, sortNotes } from "../notes.mjs";
+import { createNote, getNoteActivity, getSiteKey, getStorageKey, hasNoteContent, sortNotes } from "../notes.mjs";
 
 test("страницы, протоколы, порты и www одного сайта используют один ключ", () => {
   for (const url of [
@@ -40,4 +40,10 @@ test("под кнопкой показывается создание до ре�
   assert.deepEqual(getNoteActivity(note), {
     label: "Изменена", timestamp: "2026-10-16T12:05:00.000Z"
   });
+});
+
+test("заметка с пустым или пробельным текстом не подлежит сохранению", () => {
+  assert.equal(hasNoteContent(""), false);
+  assert.equal(hasNoteContent("  \n\t "), false);
+  assert.equal(hasNoteContent("  Текст  "), true);
 });

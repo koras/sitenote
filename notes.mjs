@@ -40,3 +40,7 @@ export function getNoteActivity(note) {
     ? { label: "Создана", timestamp: note.createdAt }
     : { label: "Изменена", timestamp: note.updatedAt };
 }
+
+export function hasNoteContent(content) {
+  return content.trim().length > 0;
+}

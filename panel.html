@@ -35,9 +35,16 @@
 
           <label class="field-label" for="note-content">Текст заметки</label>
           <textarea id="note-content" spellcheck="true" placeholder="Запишите здесь нужную информацию…"></textarea>
-          <div class="timestamps">
+          <div id="timestamps" class="timestamps">
             <div>Создана: <time id="created-at"></time></div>
             <div>Изменена: <time id="updated-at"></time></div>
+          </div>
+          <div class="save-bar">
+            <span id="save-status" class="save-status" role="status"></span>
+            <div class="save-actions">
+              <button id="cancel-note" class="cancel-button" type="button">Отмена</button>
+              <button id="save-note" class="save-button" type="button">Сохранить</button>
+            </div>
           </div>
         </div>
       </section>

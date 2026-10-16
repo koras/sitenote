@@ -61,6 +61,15 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
 .delete-button:hover { text-decoration: underline; }
 #note-content { resize: vertical; flex: 1; min-height: 180px; padding: 11px; font-size: 13px; line-height: 1.5; }
 .timestamps { display: grid; gap: 3px; color: #828093; font-size: 10px; margin-top: 12px; }
+.save-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-top: 16px; }
+.save-status { color: #787587; font-size: 11px; }
+.save-actions { display: flex; gap: 6px; margin-left: auto; }
+.cancel-button, .save-button { border: 0; border-radius: 8px; padding: 8px 10px; font-size: 12px; font-weight: 650; }
+.cancel-button { background: #eae9f0; color: #4e4b61; }
+.cancel-button:hover { background: #dfdde8; }
+.save-button { background: #6658d3; color: #fff; }
+.save-button:hover { background: #5648c1; }
+.save-button:disabled { opacity: .6; cursor: wait; }
 .empty-note, .unsupported { color: #777587; text-align: center; }
 .empty-note { padding: 55px 8px; }
 .unsupported { padding: 80px 30px; }
